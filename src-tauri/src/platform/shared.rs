@@ -55,11 +55,29 @@ pub fn send_slot_eval(window: &Window, slot_bar_index: usize, k: usize) {
 }
 
 pub fn eval_mob_click(window: &Window, pos: Point) {
+    // Fresh-7 (display-scale fix): `pos` comes from the screenshot, so it is
+    // in device pixels, but the click is dispatched as a webview mouse
+    // event, whose coordinates are in logical (CSS) pixels. On a display
+    // scaled above 100% (e.g. 125%) the two differ by the scale factor, so
+    // an unconverted click lands too far down and to the right — usually on
+    // empty ground, which made lock-on slow and inconsistent. Divide by the
+    // window's scale factor to convert. At 100% scaling the factor is 1.0
+    // and the click is unchanged; if the factor cannot be read, fall back
+    // to the unconverted position (the old behavior).
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    let (x, y) = if scale_factor > 0.0 && scale_factor != 1.0 {
+        (
+            (pos.x as f64 / scale_factor).round() as u32,
+            (pos.y as f64 / scale_factor).round() as u32,
+        )
+    } else {
+        (pos.x, pos.y)
+    };
     drop(
         window.eval(
             format!(
                 "mouseEvent('moveClick', {0}, {1}, {{checkMob: true}});",
-                pos.x, pos.y
+                x, y
             )
             .as_str(),
         ),
